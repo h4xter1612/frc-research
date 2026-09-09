@@ -1,0 +1,22 @@
+# WarpX outputs
+diags/
+checkpoints/
+results/
+plt*/
+chk*/
+
+# openPMD / ADIOS2 data
+*.bp
+*.bp5
+
+# HPC
+slurm-*.out
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Large/raw inherited material
+qiwei_original/
+*.zip
