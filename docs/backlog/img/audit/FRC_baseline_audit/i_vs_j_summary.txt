@@ -1,0 +1,33 @@
+Baseline run-to-run comparison: i vs j
+============================================================
+
+Matching timesteps: 21
+
+Bz_center
+  max_abs_difference  = 3.332869062973e-04
+  mean_abs_difference = 5.482736289911e-05
+
+Bz_min_chamber
+  max_abs_difference  = 1.310580494915e-03
+  mean_abs_difference = 1.404484542832e-04
+
+Bz_max_chamber
+  max_abs_difference  = 4.395412277942e-04
+  mean_abs_difference = 8.639417955438e-05
+
+rho_center
+  max_abs_difference  = 8.223542855519e-02
+  mean_abs_difference = 3.493333900256e-02
+
+rho_max_chamber
+  max_abs_difference  = 5.124002874075e-01
+  mean_abs_difference = 1.135166696604e-01
+
+Ti_center
+  max_abs_difference  = 3.454980739901e-01
+  mean_abs_difference = 9.844021499522e-02
+
+Ti_max_chamber
+  max_abs_difference  = 6.854834995231e+01
+  mean_abs_difference = 1.199413860861e+01
+
