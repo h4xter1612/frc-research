@@ -1,0 +1,367 @@
+
+\documentclass[10pt,aspectratio=169]{beamer}
+
+% ------------------------------------------------------------
+% Packages
+% ------------------------------------------------------------
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{listings}
+
+% ------------------------------------------------------------
+% Theme
+% ------------------------------------------------------------
+\usetheme{Madrid}
+\usecolortheme{default}
+\setbeamertemplate{navigation symbols}{}
+
+\definecolor{ustcblue}{RGB}{0,55,120}
+\definecolor{softgray}{RGB}{245,246,248}
+\definecolor{darkred}{RGB}{140,25,25}
+
+\setbeamercolor{structure}{fg=ustcblue}
+\setbeamercolor{frametitle}{fg=white,bg=ustcblue}
+\setbeamercolor{title}{fg=white,bg=ustcblue}
+\setbeamercolor{block title}{fg=white,bg=ustcblue}
+\setbeamercolor{block body}{bg=softgray,fg=black}
+
+\lstset{
+    basicstyle=\ttfamily\scriptsize,
+    backgroundcolor=\color{softgray},
+    frame=single,
+    breaklines=true,
+    columns=fullflexible,
+    keepspaces=true,
+    showstringspaces=false
+}
+
+% ------------------------------------------------------------
+% Metadata
+% ------------------------------------------------------------
+\title[FRC Weekly Update]{FRC Project Weekly Update}
+\subtitle{Formation Baseline Closed; GS/MRR Takeover Started}
+\author{Juan Pablo Solís Ruiz}
+\institute{USTC --- Supervisor: Prof. Ren Haijun}
+\date{October 13, 2026}
+
+% ------------------------------------------------------------
+\begin{document}
+
+% ------------------------------------------------------------
+\begin{frame}
+    \titlepage
+\end{frame}
+
+% ------------------------------------------------------------
+\begin{frame}{Status Since Last Update}
+    \begin{block}{Main message}
+        The validated formation workflow remains closed. The main new progress
+        was a preliminary forensic audit of the inherited GS/MRR initializer,
+        not a new production simulation.
+    \end{block}
+
+    \vspace{0.3cm}
+
+    \begin{itemize}
+        \item Formation baseline reproduction remains validated.
+        \item The \(4~\mu\mathrm{s}\) formation extension was documented as a
+        controlled exploratory run.
+        \item The inherited \texttt{hybrid\_init.py} / MRR-GS workflow was
+        reviewed conceptually.
+        \item No GS/MRR physics or tilt perturbation has been modified yet.
+        \item Progress was limited by a temporary high academic and project load.
+    \end{itemize}
+\end{frame}
+
+% ------------------------------------------------------------
+\begin{frame}{Formation Work Is Now a Reference, Not the Main Focus}
+    \begin{columns}[T,onlytextwidth]
+        \begin{column}{0.48\textwidth}
+            \centering
+            \includegraphics[width=\linewidth]{img/framework_v_01/Bz_center.png}
+
+            \vspace{0.1cm}
+            \small Validated 2000-step baseline regression
+        \end{column}
+
+        \begin{column}{0.48\textwidth}
+            \centering
+            \includegraphics[width=\linewidth]{img/formation_4us/Bz_radial_2_3_4us.png}
+
+            \vspace{0.1cm}
+            \small Exploratory \(2\rightarrow4~\mu\mathrm{s}\) extension
+        \end{column}
+    \end{columns}
+
+    \vspace{0.3cm}
+
+    \begin{block}{Conclusion}
+        Formation is now frozen as a validated framework example. I do not plan
+        to spend more compute on formation until new diagnostics or a specific
+        physics question require it.
+    \end{block}
+\end{frame}
+
+% ------------------------------------------------------------
+\begin{frame}{What the \(4~\mu\mathrm{s}\) Extension Showed}
+    \begin{columns}[T,onlytextwidth]
+        \begin{column}{0.42\textwidth}
+            \centering
+            \includegraphics[width=\linewidth]{img/formation_4us/Bz_xz_step004000.png}
+
+            \vspace{0.1cm}
+            \small \(B_z(x,z)\) at \(t=4~\mu\mathrm{s}\)
+        \end{column}
+
+        \begin{column}{0.53\textwidth}
+            \begin{itemize}
+                \item The imposed drive reaches
+                \[
+                A_{\mathrm{time}}=1
+                \quad\text{at}\quad
+                t=4~\mu\mathrm{s}.
+                \]
+                \item The strongest sampled central compression occurred earlier,
+                near
+                \[
+                t\simeq1.7~\mu\mathrm{s}.
+                \]
+                \item The behavior was non-monotonic:
+                \[
+                \text{compression}
+                \rightarrow
+                \text{relaxation}
+                \rightarrow
+                \text{renewed compression}.
+                \]
+                \item Field reversal persisted at the end of the ramp.
+            \end{itemize}
+        \end{column}
+    \end{columns}
+
+    \vspace{0.2cm}
+    \small
+    The \(B_z=0\) contour is still treated only as a field-reversal proxy, not a
+    formal magnetic separatrix.
+\end{frame}
+
+% ------------------------------------------------------------
+\begin{frame}{GS/MRR Takeover: First Forensic Pass}
+    \begin{block}{Recovered workflow}
+        \[
+        (\beta_s,\delta_s,n,B_{\rm ext})
+        \rightarrow
+        \text{MRR-1 radial closure}
+        \rightarrow
+        \text{fixed-boundary GS}
+        \rightarrow
+        \texttt{init.bp}
+        \rightarrow
+        \text{hybrid-PIC tilt run}.
+        \]
+    \end{block}
+
+    \vspace{0.25cm}
+
+    \begin{itemize}
+        \item \texttt{hybrid\_init.py} generates both the initial fields and
+        the external-file particles.
+        \item The tilt seed is already embedded in the particle momenta in
+        \texttt{init.bp}.
+        \item Therefore changing the tilt constants inside the WarpX input alone
+        does not change the actual initial perturbation.
+        \item The initializer appears deterministic because the particle RNG seed
+        is fixed.
+    \end{itemize}
+\end{frame}
+
+% ------------------------------------------------------------
+\begin{frame}{MRR-1 Model Reconstructed}
+    \begin{block}{Pressure closure}
+        \[
+        \bar p(x)
+        =
+        \beta_s e^{-\alpha x}
+        (1+\sigma x)^n,
+        \qquad
+        x=\frac{\psi}{B_e R_s^2}.
+        \]
+    \end{block}
+
+    \begin{columns}[T,onlytextwidth]
+        \begin{column}{0.48\textwidth}
+            \begin{itemize}
+                \item Current defaults:
+                \[
+                \beta_s=0.6,\quad n=2.
+                \]
+                \item The code uses:
+                \[
+                \delta_s=0.4\delta_s^{RR}.
+                \]
+                \item Reconstructed values:
+                \[
+                \alpha\simeq31.5351,
+                \quad
+                \sigma\simeq8.31255.
+                \]
+            \end{itemize}
+        \end{column}
+
+        \begin{column}{0.48\textwidth}
+            \begin{block}{GS equation}
+                \[
+                \Delta^\star\psi
+                =
+                -\mu_0 r^2 P'(\psi).
+                \]
+                \[
+                B_z=\frac{1}{r}\frac{\partial\psi}{\partial r},
+                \qquad
+                B_r=-\frac{1}{r}\frac{\partial\psi}{\partial z}.
+                \]
+            \end{block}
+        \end{column}
+    \end{columns}
+\end{frame}
+
+% ------------------------------------------------------------
+\begin{frame}{Important Audit Findings}
+    \begin{itemize}
+        \item The current initializer uses
+        \[
+        B_{\rm external}=0.26~\mathrm{T},
+        \]
+        while the reference PDF example appears to document a
+        \(0.13~\mathrm{T}\) case.
+        \item The MRR scale parameter
+        \[
+        R_s^{\rm MRR}=0.25~\mathrm{m}
+        \]
+        should not be confused with the geometry extracted from the converged
+        equilibrium.
+        \item The initializer writes
+        \[
+        R_0\simeq0.1707~\mathrm{m},
+        \qquad
+        Z_0\simeq0.3244~\mathrm{m}
+        \]
+        for the tilt seed.
+        \item The inherited materials also contain evolved quantities such as
+        \(R_s\), \(L_s\), \(E\), and \(S=R_s/d_i\), which are different objects.
+    \end{itemize}
+\end{frame}
+
+% ------------------------------------------------------------
+\begin{frame}{Tilt Seed: What Is Already Known}
+    \begin{block}{Implemented perturbation}
+        The seed is an \(n=1\) axial-velocity perturbation:
+        \[
+        \delta u_z
+        =
+        u_0
+        N
+        \frac{r}{R_0}
+        \left(
+        \frac{-\psi}{\psi_O}
+        \right)^2
+        \cos\theta,
+        \qquad
+        \psi<0.
+        \]
+    \end{block}
+
+    \vspace{0.3cm}
+
+    \begin{itemize}
+        \item Seed amplitude:
+        \[
+        \epsilon=0.01.
+        \]
+        \item Effective Alfv\'en speed written by the initializer:
+        \[
+        V_A\simeq1.35\times10^5~\mathrm{m/s}.
+        \]
+        \item Peak seed velocity:
+        \[
+        \epsilon V_A\simeq1.35\times10^3~\mathrm{m/s}.
+        \]
+        \item No \(n>1\) perturbation should be added before reproducing the
+        inherited \(n=1\) case.
+    \end{itemize}
+\end{frame}
+
+% ------------------------------------------------------------
+\begin{frame}{Workload Constraint and Current Plan}
+    \begin{block}{Context}
+        During the last two weeks, progress was limited by coursework,
+        plasma-physics regularization, and a separate project deadline. I did
+        not want to mix uncontrolled code changes with incomplete attention.
+    \end{block}
+
+    \vspace{0.3cm}
+
+    \begin{itemize}
+        \item No new GS/MRR run was launched.
+        \item No tilt physics was modified.
+        \item The work done was deliberately limited to reading, documenting,
+        and separating definitions.
+        \item This keeps the next step clean: reproduce first, then change
+        physics.
+    \end{itemize}
+\end{frame}
+
+% ------------------------------------------------------------
+\begin{frame}{Next Concrete Steps}
+    \begin{enumerate}
+        \item Run \texttt{hybrid\_init.py} alone, without launching WarpX.
+        \item Print and save a normalization table:
+        \[
+        R_0,\ Z_0,\ B_{\rm ext},\ n_0,\ V_A,\ d_i,\ S,\ E,\ S/E.
+        \]
+        \item Verify that generated \texttt{init.bp} matches the inherited input.
+        \item Create a short WarpX smoke run for the GS/MRR case.
+        \item Build the first tilt diagnostic:
+        \[
+        A_1(t),\qquad
+        \ln A_1(t),\qquad
+        \gamma_{\rm tilt}\tau_A.
+        \]
+    \end{enumerate}
+
+    \vspace{0.25cm}
+
+    \begin{center}
+        \Large
+        Priority: GS/MRR reproduction before parameter studies.
+    \end{center}
+\end{frame}
+
+% ------------------------------------------------------------
+\begin{frame}{Request for Feedback}
+    \begin{block}{Decision point}
+        I propose not to modify the equilibrium or add additional perturbation
+        modes until the inherited \(n=1\) tilt case is reproduced.
+    \end{block}
+
+    \vspace{0.3cm}
+
+    Feedback requested:
+    \begin{itemize}
+        \item Is the current priority correct: reproduce GS/MRR tilt first?
+        \item Should the first reproduced case be \(B_{\rm ext}=0.26~\mathrm{T}\)
+        seeded?
+        \item Which diagnostic should be preferred for the tilt amplitude:
+        density displacement, magnetic-axis displacement, or Fourier \(n=1\)
+        amplitude?
+    \end{itemize}
+\end{frame}
+
+% ------------------------------------------------------------
+\end{document}
