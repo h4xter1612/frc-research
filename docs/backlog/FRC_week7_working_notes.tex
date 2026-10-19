@@ -1,0 +1,1163 @@
+
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{listings}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{graphicx}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    urlcolor=blue,
+    citecolor=blue
+}
+
+\definecolor{codegray}{gray}{0.95}
+
+\lstset{
+    basicstyle=\ttfamily\small,
+    backgroundcolor=\color{codegray},
+    frame=single,
+    breaklines=true,
+    columns=fullflexible,
+    keepspaces=true,
+    showstringspaces=false
+}
+
+\pagestyle{fancy}
+\fancyhf{}
+\lhead{FRC Research Notes}
+\rhead{Week 7}
+\cfoot{\thepage}
+
+\titleformat{\section}{\large\bfseries}{\thesection.}{0.5em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection.}{0.5em}{}
+
+\title{\textbf{FRC Research --- Week 7 Working Notes}\\
+\large GS/MRR Legacy Reproduction and First Hybrid-PIC Tilt Smoke Test}
+\author{Juan Pablo Solís Ruiz\\
+Supervisor: Prof. Ren Haijun}
+\date{October 19--25, 2026}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+\newpage
+
+% ============================================================
+\section{Purpose and Current Status}
+
+These notes begin a new weekly research record after the completion of the
+formation-baseline work and the transition toward the inherited
+Grad--Shafranov / Modified Rigid Rotor (GS/MRR) equilibrium and tilt-instability
+workflow.
+
+The active objective is now
+
+\[
+\boxed{
+\text{Reproduce inherited GS/MRR initialization}
+\rightarrow
+\text{verify provenance}
+\rightarrow
+\text{run WarpX smoke test}
+\rightarrow
+\text{measure tilt growth}
+}
+\]
+
+rather than continuing formation studies.
+
+Progress during the previous two weeks was limited by a high academic workload
+and a separate plasma-physics project. No major production simulation was
+completed during that interval. The present week therefore resumes the FRC
+takeover with a deliberately narrow goal: establish a trustworthy inherited
+GS/MRR reference case and verify that it can be evolved with the existing
+WarpX build on SCNet.
+
+The guiding principle remains
+
+\[
+\boxed{
+\text{Reproduce} \rightarrow \text{Verify} \rightarrow \text{Modify}
+}
+\]
+
+with no physics changes introduced before the inherited case is understood.
+
+% ============================================================
+\section{Inherited GS/MRR Materials}
+
+The inherited initialization material currently used for the takeover consists
+primarily of:
+
+\begin{lstlisting}
+gs_init/
+|-- hybrid_init.py
+|-- input
+`-- modified_rigid_rotorpdf.pdf
+\end{lstlisting}
+
+The active script \texttt{hybrid\_init.py} performs the following pipeline:
+
+\[
+(\beta_s,\delta_s,n,B_{\rm ext},R_s,\ldots)
+\rightarrow
+\text{MRR-1 radial closure}
+\rightarrow
+\text{fixed-boundary GS solve}
+\]
+
+\[
+\rightarrow
+\left\{
+\psi(r,z), B_r, B_z, P, n, J_\theta
+\right\}
+\rightarrow
+\text{3D Cartesian interpolation}
+\]
+
+\[
+\rightarrow
+\text{particle loading + } n=1 \text{ tilt seed}
+\rightarrow
+\texttt{init.bp}
+\rightarrow
+\text{WarpX input}.
+\]
+
+The inherited WarpX input is therefore not an independent hand-written case:
+it is generated from the GS/MRR initializer and should be treated together
+with the corresponding \texttt{init.bp} state.
+
+% ============================================================
+\section{MRR-1 / GS Model Reconstructed}
+
+\subsection{MRR-1 Pressure Closure}
+
+The pressure model implemented in the inherited initializer is
+
+\[
+\bar p(x)
+=
+\beta_s e^{-\alpha x}(1+\sigma x)^n,
+\]
+
+with
+
+\[
+x =
+\frac{\psi}{B_{\rm external}R_s^2}.
+\]
+
+For the inherited reference family,
+
+\[
+\beta_s = 0.6,
+\qquad
+n = 2,
+\]
+
+and
+
+\[
+\delta_s
+=
+0.4\,\delta_s^{RR}.
+\]
+
+The reproduced MRR parameters are
+
+\[
+\delta_s = 0.10604579,
+\]
+
+\[
+\alpha = 31.535058,
+\qquad
+\sigma = 8.3125473,
+\]
+
+\[
+\psi_m = -0.053673671.
+\]
+
+These values agree with the documented MRR example and are independent of the
+absolute magnetic-field scale used in the two cases studied below.
+
+\subsection{Fixed-Boundary Grad--Shafranov Equation}
+
+The initializer solves the axisymmetric FRC equilibrium
+
+\[
+\Delta^\star\psi
+=
+-\mu_0 r^2\frac{dP}{d\psi},
+\]
+
+with field reconstruction
+
+\[
+B_z
+=
+\frac{1}{r}\frac{\partial\psi}{\partial r},
+\qquad
+B_r
+=
+-\frac{1}{r}\frac{\partial\psi}{\partial z}.
+\]
+
+The external axial mirror-field envelope is imposed as a fixed Dirichlet
+boundary condition for the GS solve.
+
+The current default initializer uses
+
+\[
+B_{\rm external}=0.26~\mathrm{T},
+\]
+
+whereas the inherited generated \texttt{input} was found to correspond to
+
+\[
+B_{\rm external}=0.13~\mathrm{T}.
+\]
+
+This distinction became the main result of the first reproduction audit.
+
+% ============================================================
+\section{SCNet Python / openPMD Environment}
+
+The GS/MRR initializer requires \texttt{openpmd\_api} with ADIOS2/BP5 support
+in addition to NumPy, SciPy, and Matplotlib.
+
+The working SCNet Python environment is
+
+\begin{table}[htbp]
+    \centering
+    \caption{Python environment used for the initializer reproduction.}
+    \begin{tabular}{ll}
+        \toprule
+        Component & Version \\
+        \midrule
+        Python & 3.8.10 \\
+        NumPy & 1.24.4 \\
+        SciPy & 1.10.1 \\
+        Matplotlib & 3.7.5 \\
+        openpmd-api & 0.16.1 \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+A direct BP5 write/read test completed successfully before the inherited
+initializer was executed.
+
+\subsection{Minimal NumPy Compatibility Patch}
+
+The inherited script used
+
+\begin{lstlisting}
+np.trapezoid(...)
+\end{lstlisting}
+
+in two locations. NumPy 1.24.4 does not provide that API. The working copy was
+therefore patched to use
+
+\begin{lstlisting}
+np.trapz(...)
+\end{lstlisting}
+
+in the two trapezoidal integrations.
+
+No physical or numerical model parameter was changed.
+
+The frozen inherited initializer has SHA256
+
+\begin{lstlisting}
+6c8197c175cc7fb4aca6b89f6fde93d7b94bcbac324dd5a161d59b4dadee4034
+\end{lstlisting}
+
+and the minimally patched working copy has SHA256
+
+\begin{lstlisting}
+4e89d1664cc5ef47bdc610d38eee4bcdcc07e81af5cd72abc25e18aab97a02ae
+\end{lstlisting}
+
+The compatibility difference is preserved as
+\texttt{numpy\_compat.patch}.
+
+% ============================================================
+\section{First Initializer Reproduction: Current 0.26 T Default}
+
+The first successful GS/MRR initializer run used the current default
+
+\[
+B_{\rm mid}=0.26~\mathrm{T}.
+\]
+
+SCNet job:
+
+\begin{lstlisting}
+Job ID: 124911799
+State: COMPLETED
+Elapsed: 00:01:15
+ExitCode: 0:0
+Node: a01r1n13
+\end{lstlisting}
+
+The initializer reported
+
+\[
+I_{\rm target}=391136.95~\mathrm{A},
+\]
+
+\[
+I_{\rm mid}=391933.99~\mathrm{A},
+\]
+
+with
+
+\[
+408
+\]
+
+nonlinear iterations and final change
+
+\[
+4.999\times10^{-5}.
+\]
+
+The tilt-seed normalization was
+
+\[
+\epsilon=0.01,
+\qquad
+V_A=134595.59~\mathrm{m/s},
+\]
+
+\[
+\delta v_{z,\max}=1345.9559~\mathrm{m/s},
+\qquad
+u_0=4.48651972\times10^{-6}.
+\]
+
+The generated initialization dataset was approximately
+
+\[
+1.4~\mathrm{GB},
+\]
+
+with the principal BP5 payload
+
+\[
+\texttt{outputs/init.bp/data.0}
+\simeq
+1.46\times10^9~\mathrm{bytes}.
+\]
+
+% ============================================================
+\section{Important Audit Result: 0.26 T Did Not Match the Inherited Input}
+
+The generated 0.26 T WarpX input did not reproduce the inherited input.
+
+The important differences were highly structured rather than arbitrary.
+
+For the inherited input,
+
+\[
+n_{0,\rm legacy}
+=
+4.28012348\times10^{20}~\mathrm{m^{-3}},
+\]
+
+whereas the current 0.26 T initializer generated
+
+\[
+n_{0,0.26}
+=
+1.71204939\times10^{21}~\mathrm{m^{-3}}.
+\]
+
+Therefore,
+
+\[
+\frac{n_{0,0.26}}{n_{0,\rm legacy}}
+=
+4.
+\]
+
+At the same time, the tilt flux normalization changed from approximately
+
+\[
+\psi_{O,\rm legacy}
+=
+3.634298\times10^{-4}
+\]
+
+to
+
+\[
+\psi_{O,0.26}
+=
+7.268596\times10^{-4},
+\]
+
+a factor of two.
+
+This is consistent with the expected field scaling:
+
+\[
+P \propto B^2,
+\qquad
+n \propto B^2,
+\qquad
+\psi\propto B.
+\]
+
+The Alfv\'en speed remained effectively unchanged,
+
+\[
+V_A
+=
+\frac{B}{\sqrt{\mu_0m_i n}}
+\simeq
+134595.59~\mathrm{m/s},
+\]
+
+because the density scales approximately as \(B^2\).
+
+This immediately suggested that the inherited input was generated using
+
+\[
+\boxed{
+B_{\rm external}=0.13~\mathrm{T}
+}
+\]
+
+even though the present initializer default has since been changed to
+\(0.26~\mathrm{T}\).
+
+% ============================================================
+\section{Legacy 0.13 T Initializer Reproduction}
+
+A second initializer run was therefore launched with the explicit override
+
+\begin{lstlisting}
+python hybrid_init.py --b-external 0.13
+\end{lstlisting}
+
+SCNet job:
+
+\begin{lstlisting}
+Job ID: 124912662
+State: COMPLETED
+Elapsed: 00:00:51
+ExitCode: 0:0
+Node: a01r1n05
+\end{lstlisting}
+
+The reproduced equilibrium reported
+
+\[
+B_{\rm mid}=0.13~\mathrm{T},
+\]
+
+\[
+T_e=T_i=100~\mathrm{eV},
+\qquad
+\beta_s=0.6,
+\]
+
+\[
+I_{\rm target}=195568.47~\mathrm{A},
+\]
+
+\[
+I_{\rm mid}=195966.99~\mathrm{A}.
+\]
+
+The relative current mismatch is approximately
+
+\[
+\frac{|I_{\rm mid}-I_{\rm target}|}{I_{\rm target}}
+\simeq
+2.04\times10^{-3},
+\]
+
+or approximately
+
+\[
+0.204\%.
+\]
+
+The GS solve again required
+
+\[
+408
+\]
+
+iterations with final convergence measure
+
+\[
+4.999\times10^{-5}.
+\]
+
+The tilt quantities remained
+
+\[
+\epsilon=0.01,
+\]
+
+\[
+V_A=134595.59~\mathrm{m/s},
+\]
+
+\[
+\delta v_{z,\max}=1345.9559~\mathrm{m/s},
+\]
+
+\[
+u_0\simeq4.48652\times10^{-6}.
+\]
+
+% ============================================================
+\section{Input-Level Reproduction Result}
+
+The generated 0.13 T WarpX input was compared against the frozen inherited
+input after ignoring Windows CRLF versus Linux LF line endings.
+
+The only remaining differences were floating-point roundoff in the derived
+tilt constants.
+
+For example,
+
+\[
+R_0:
+1.7067470103522647\times10^{-1}
+\rightarrow
+1.7067470103588542\times10^{-1},
+\]
+
+\[
+Z_0:
+3.2443343476544395\times10^{-1}
+\rightarrow
+3.2443343476968189\times10^{-1},
+\]
+
+and
+
+\[
+\psi_O:
+3.6342981445693686\times10^{-4}
+\rightarrow
+3.6342981445940635\times10^{-4}.
+\]
+
+The relative differences are of order
+
+\[
+10^{-11}
+\]
+
+or smaller.
+
+Therefore the present result is
+
+\[
+\boxed{
+\text{Legacy 0.13 T seeded MRR/GS initialization reproduced to numerical precision.}
+}
+\]
+
+This closes the first major uncertainty in the inherited GS/MRR takeover:
+the frozen legacy input corresponds to the \(0.13~\mathrm{T}\) case, whereas
+the current initializer default corresponds to \(0.26~\mathrm{T}\).
+
+% ============================================================
+\section{File-Placement Error and Workflow Correction}
+
+During the first 0.13 T rerun, the copied Slurm script still contained a
+hard-coded \texttt{cd} path pointing to the 0.26 T run directory.
+
+As a result, the 0.13 T outputs temporarily overwrote the 0.26 T output
+directory.
+
+The simulation itself completed correctly; the issue was only output
+placement.
+
+The Slurm script was corrected to use
+
+\begin{lstlisting}
+cd "$SLURM_SUBMIT_DIR"
+\end{lstlisting}
+
+so future runs write into the directory from which they are submitted.
+
+The reproduced 0.13 T outputs were then moved into the correct run directory.
+
+This reinforces the framework requirement that run directories and provenance
+must be generated automatically rather than encoded manually in job scripts.
+
+% ============================================================
+\section{First WarpX GS/MRR Tilt Smoke Test}
+
+After reproducing the inherited initializer, a separate smoke-test run
+directory was created.
+
+The smoke test uses the reproduced \(0.13~\mathrm{T}\), seeded
+\texttt{init.bp} state and the same WarpX executable previously used for the
+validated formation work:
+
+\begin{lstlisting}
+/public/home/acszlf5t66/WQ/WarpX/build/bin/warpx.3d
+\end{lstlisting}
+
+which resolves to
+
+\begin{lstlisting}
+warpx.3d.MPI.OMP.DP.PDP.OPMD.EB.QED
+\end{lstlisting}
+
+The runtime environment follows the known working formation configuration:
+
+\begin{itemize}
+    \item partition: \texttt{kshcnormal},
+    \item 1 node,
+    \item 4 MPI ranks,
+    \item 8 OpenMP threads per rank,
+    \item GCC 12.2,
+    \item Intel MPI 2021.3.
+\end{itemize}
+
+The inherited input contains
+
+\[
+N_t=40000,
+\qquad
+\Delta t=1~\mathrm{ns},
+\]
+
+but the smoke test overrides only
+
+\[
+\boxed{
+N_t=200
+}
+\]
+
+from the command line.
+
+Therefore
+
+\[
+t_{\rm end}
+=
+200\times1~\mathrm{ns}
+=
+0.2~\mu\mathrm{s}.
+\]
+
+No equilibrium, particle-loading, resistivity, hybrid-substep, or tilt-seed
+parameter is modified.
+
+The smoke-test job submitted on October 19 is
+
+\begin{lstlisting}
+Job ID: 124913331
+Name: frc-tilt-smoke
+\end{lstlisting}
+
+The purpose of this run is not yet to measure tilt growth. It tests the full
+execution chain
+
+\[
+\boxed{
+\texttt{init.bp}
+\rightarrow
+\text{WarpX field/particle loading}
+\rightarrow
+\text{hybrid-PIC initialization}
+\rightarrow
+200\text{-step evolution}.
+}
+\]
+
+At the time these notes were written, the job had been submitted and its final
+status was pending.
+
+% ============================================================
+\section{Interpretation of the Tilt Seed}
+
+The inherited initializer imposes a controlled axial \(n=1\) perturbation.
+
+The implemented form can be summarized as
+
+\[
+\delta u_z
+=
+u_0
+N
+\frac{r}{R_0}
+\left(
+\frac{-\psi}{\psi_O}
+\right)^p
+\cos(\theta-\phi),
+\qquad
+\psi<0,
+\]
+
+with
+
+\[
+p=2,
+\qquad
+\phi=0,
+\qquad
+\epsilon=0.01.
+\]
+
+The perturbation is zero outside the closed-flux region selected by
+\(\psi<0\).
+
+Importantly, this seed is already written into the particle momenta stored in
+\texttt{init.bp}. The constants written into the WarpX input are therefore
+provenance information; changing them without regenerating
+\texttt{init.bp} would not change the actual initialized particle
+perturbation.
+
+% ============================================================
+\section{What Has Been Established So Far}
+
+The following statements are now supported by the reproduction work:
+
+\begin{enumerate}
+    \item The inherited MRR-1 / fixed-boundary GS initializer runs successfully
+    on SCNet after a minimal NumPy API compatibility patch.
+
+    \item The current initializer default is a \(0.26~\mathrm{T}\) case.
+
+    \item The frozen inherited WarpX input corresponds instead to the
+    \(0.13~\mathrm{T}\) case.
+
+    \item The \(0.13~\mathrm{T}\) generated input reproduces the inherited input
+    to numerical precision after normalizing line endings.
+
+    \item The expected scalings
+    \[
+    n\propto B^2,
+    \qquad
+    \psi\propto B
+    \]
+    explain the difference between the 0.13 T and 0.26 T generated cases.
+
+    \item The Alfv\'en speed and normalized tilt-seed velocity remain
+    essentially unchanged between these two scaled equilibria.
+
+    \item A first WarpX hybrid-PIC smoke test has been submitted from the
+    reproduced \(0.13~\mathrm{T}\) state.
+\end{enumerate}
+
+% ============================================================
+\section{Immediate Next Steps}
+
+The next actions should be performed in the following order.
+
+\begin{enumerate}
+    \item Check the final state of job \texttt{124913331}.
+
+    \item If the 200-step smoke test completes successfully, verify:
+    \begin{itemize}
+        \item WarpX used-input provenance,
+        \item successful field and external-particle loading,
+        \item diagnostic output at the expected intervals,
+        \item absence of NaNs or immediate numerical failure.
+    \end{itemize}
+
+    \item Build a first quantitative \(n=1\) tilt diagnostic.
+
+    A useful geometric metric is the complex axial displacement moment
+
+    \[
+    Z_1(t)
+    =
+    \frac{
+        \int z\,\rho(\mathbf{x},t)e^{-i\theta}\,dV
+    }{
+        \int \rho(\mathbf{x},t)\,dV
+    },
+    \]
+
+    with
+
+    \[
+    A_1(t)=|Z_1(t)|.
+    \]
+
+    \item Once the smoke test is trusted, run a longer seeded case long enough
+    to identify a linear-growth interval.
+
+    \item Fit
+
+    \[
+    A_1(t)\propto e^{\gamma t}
+    \]
+
+    or equivalently
+
+    \[
+    \ln A_1(t)=\gamma t+C
+    \]
+
+    to obtain the dimensional tilt growth rate.
+
+    \item Only after reproducing the inherited seeded case should the study move
+    to seed-amplitude scans, unseeded cases, \(B_{\rm ext}\) scaling, or other
+    equilibrium modifications.
+\end{enumerate}
+
+% ============================================================
+\section{Open Questions for the Next Audit}
+
+Several normalization and diagnostic questions remain intentionally open.
+
+\begin{itemize}
+    \item What exact length scale was used in the inherited definition of
+    \(\tau_A\)?
+
+    \item Which evolved geometry definition was used for \(R_s\), \(L_s\),
+    elongation \(E\), and \(S^*=R_s/d_i\)?
+
+    \item Should the primary tilt amplitude be based on density displacement,
+    magnetic-axis displacement, or a direct azimuthal Fourier decomposition?
+
+    \item Does the inherited post-processing use ion bulk velocity, total
+    current, or an approximation such as \(j_z/\rho\) when diagnosing the tilt?
+
+    \item Which inherited run should be treated as the canonical reference:
+    the reproduced \(0.13~\mathrm{T}\) case or one of the later
+    \(0.26~\mathrm{T}\) seeded/unseeded cases?
+\end{itemize}
+
+These questions should be resolved through reproduction and explicit
+diagnostics rather than assumptions.
+
+% ============================================================
+\section{End-of-Day Status --- October 19}
+
+The main result of the day is not a new parameter scan. It is the establishment
+of a trustworthy GS/MRR reference initialization.
+
+The sequence completed was
+
+\[
+\boxed{
+\text{legacy audit}
+\rightarrow
+\text{SCNet dependency setup}
+\rightarrow
+\text{0.26 T reproduction}
+\rightarrow
+\text{field-scaling discrepancy}
+\rightarrow
+\text{0.13 T reproduction}
+}
+\]
+
+followed by
+
+\[
+\boxed{
+\text{first WarpX GS/MRR smoke test submitted}.
+}
+\]
+
+This is the first end-to-end step from the inherited equilibrium generator
+toward a reproducible tilt-instability workflow.
+
+% ============================================================
+\section{October 19, 2026 --- Legacy GS/MRR Reproduction and
+ADIOS2-Enabled WarpX Takeover}
+% ============================================================
+
+Today the main objective was to move from inspection of the inherited
+Grad--Shafranov / Modified Rigid Rotor (GS/MRR) initialization toward an
+actual reproducible tilt-instability simulation. The work resulted in two
+important milestones: (i) numerical reproduction of the inherited
+$B_{\mathrm{ext}}=0.13~\mathrm{T}$ equilibrium initialization, and
+(ii) a working local MPI-enabled ADIOS2 installation suitable for rebuilding
+WarpX with BP5 support.
+
+% ------------------------------------------------------------
+\subsection{Legacy GS/MRR initialization reproduced}
+% ------------------------------------------------------------
+
+The inherited hybrid initializer was first reproduced with the current script
+default,
+\[
+B_{\mathrm{ext}} = 0.26~\mathrm{T},
+\]
+using only a minimal NumPy compatibility modification
+(\texttt{np.trapezoid} $\rightarrow$ \texttt{np.trapz}). No physical or
+numerical parameters were changed.
+
+The $0.26~\mathrm{T}$ run converged after 408 outer iterations with
+\[
+I_{\mathrm{target}} \simeq 391.14~\mathrm{kA},
+\qquad
+I_{\mathrm{mid}} \simeq 391.93~\mathrm{kA},
+\]
+and a final GS relative change of approximately
+\[
+5.0\times10^{-5}.
+\]
+
+Comparison against the inherited WarpX input revealed a systematic scaling:
+the generated density was four times larger while the characteristic
+poloidal flux was twice as large,
+\[
+n \propto B^2,
+\qquad
+\psi \propto B.
+\]
+At the same time, the Alfv\'en speed remained essentially unchanged because
+\[
+V_A \sim \frac{B}{\sqrt{\mu_0 m_i n}}
+\]
+is invariant under the simultaneous scaling
+$B\rightarrow2B$ and $n\rightarrow4n$.
+
+This strongly indicated that the inherited input had originally been
+generated with
+\[
+B_{\mathrm{ext}} = 0.13~\mathrm{T},
+\]
+consistent with the MRR documentation.
+
+The initializer was therefore rerun at $0.13~\mathrm{T}$. The resulting
+equilibrium gave
+\[
+I_{\mathrm{target}} \simeq 195.57~\mathrm{kA},
+\qquad
+I_{\mathrm{mid}} \simeq 195.97~\mathrm{kA},
+\]
+again converging in 408 iterations.
+
+The regenerated WarpX input matched the inherited input to numerical
+precision. The only differences were floating-point roundoff in quantities
+such as
+\[
+u_0,\quad R_0,\quad Z_0,\quad \psi_0,\quad \text{and}\quad N_{\mathrm{tilt}},
+\]
+with relative discrepancies of order
+\[
+10^{-11}
+\]
+or smaller.
+
+Therefore, the main equilibrium-reproduction result for today is
+
+\begin{quote}
+\textbf{The inherited $0.13~\mathrm{T}$ seeded MRR/GS initialization was
+reproduced to numerical precision.}
+\end{quote}
+
+The regenerated equilibrium also reproduces the inherited $n=1$ tilt seed.
+For the current initialization,
+\[
+\epsilon = 0.01,
+\qquad
+V_A \simeq 1.346\times10^5~\mathrm{m\,s^{-1}},
+\]
+giving a peak imposed axial perturbation of approximately
+\[
+\delta u_z^{\mathrm{max}}
+\simeq 1.346\times10^3~\mathrm{m\,s^{-1}}.
+\]
+
+% ------------------------------------------------------------
+\subsection{First inherited tilt smoke test}
+% ------------------------------------------------------------
+
+A short 200-step WarpX smoke test was prepared using the reproduced
+$0.13~\mathrm{T}$ initial condition. The test used the same inherited input
+physics while reducing only the total number of steps through the command-line
+override
+\[
+N_{\mathrm{step}} = 200.
+\]
+
+The existing WarpX executable initialized MPI and OpenMP successfully, but
+terminated before advancing the physical simulation. The failure occurred
+when openPMD attempted to read the BP5 initialization file:
+
+\begin{verbatim}
+openPMD::error::WrongAPIUsage
+openPMD-api built without support for backend 'ADIOS2'
+\end{verbatim}
+
+Thus, this failure was identified as an I/O/build-infrastructure problem
+rather than a failure of the GS equilibrium or tilt physics.
+
+Inspection of the original WarpX CMake configuration confirmed that
+\texttt{ADIOS2\_DIR} was not found when the existing WarpX/openPMD executable
+was compiled.
+
+% ------------------------------------------------------------
+\subsection{Local ADIOS2 build for BP5 support}
+% ------------------------------------------------------------
+
+A separate ADIOS2 installation was built inside the FRC sandbox, leaving the
+existing WarpX installation untouched.
+
+The final build used ADIOS2 v2.11.0 with source commit
+\begin{verbatim}
+a3eb1ab7d713165f457377a925c0c4f3f4dcf0e5
+\end{verbatim}
+
+and was configured approximately as
+\begin{verbatim}
+MPI          = ON
+SST          = OFF
+HDF5         = OFF
+OpenSSL      = OFF
+Python       = OFF
+Fortran      = OFF
+Shared libs  = OFF
+\end{verbatim}
+
+Two cluster-specific build issues were isolated during this process.
+
+First, the bundled FFS sources were resolving an incorrect third-party
+\texttt{config.h}. The generated FFS configuration itself was correct, but
+source files were instead finding the DILL configuration header. A local
+build-only workaround was used to ensure that the FFS sources resolved their
+own generated configuration. This allowed the FFS target to build
+successfully.
+
+Second, EVPath was still being built even though SST had explicitly been
+disabled. Since the present BP5 workflow does not require SST, a minimal
+CMake patch was introduced so that EVPath is only configured when
+\texttt{ADIOS2\_HAVE\_SST} is enabled. The patch was saved separately for
+provenance:
+
+\begin{verbatim}
+adios2-no-evpath-without-sst.patch
+SHA256:
+04278ae5f6522401d69909b94da68988b324781393794c701deceae70c669996
+\end{verbatim}
+
+With these build-only modifications, ADIOS2 compiled and installed
+successfully:
+
+\begin{verbatim}
+Slurm job:   124923692
+State:       COMPLETED
+Exit code:   0
+Elapsed:     00:03:45
+\end{verbatim}
+
+The completed build explicitly produced the FFS and ADIOS2 core targets,
+including the BP5 reader/writer implementation, and installed the expected
+static libraries such as
+
+\begin{verbatim}
+libadios2_core.a
+libadios2_core_mpi.a
+libadios2_cxx.a
+libadios2_cxx_mpi.a
+libadios2_c.a
+libadios2_c_mpi.a
+\end{verbatim}
+
+This closes the ADIOS2 dependency needed to rebuild openPMD/WarpX with BP5
+support.
+
+% ------------------------------------------------------------
+\subsection{New WarpX build and dependent smoke test}
+% ------------------------------------------------------------
+
+To avoid modifying the inherited WarpX installation, a clean WarpX source
+snapshot and a clean openPMD-api snapshot are being used for a separate
+build. The new build is configured to use the locally installed ADIOS2 and
+to preserve the important physics/numerics settings of the previous
+executable:
+
+\begin{align*}
+\text{geometry} &:\quad 3\mathrm{D},\\
+\text{parallelism} &:\quad \mathrm{MPI}+\mathrm{OpenMP},\\
+\text{field precision} &:\quad \mathrm{double},\\
+\text{particle precision} &:\quad \mathrm{double},\\
+\text{openPMD} &:\quad \mathrm{ON},\\
+\text{ADIOS2} &:\quad \mathrm{ON},\\
+\text{EB} &:\quad \mathrm{ON},\\
+\text{QED} &:\quad \mathrm{ON}.
+\end{align*}
+
+At the end of today's work, the following Slurm dependency chain was active:
+
+\begin{verbatim}
+WarpX + openPMD + ADIOS2 build:
+    Job 124925297
+
+200-step tilt smoke test:
+    Job 124925300
+
+Dependency:
+    afterok:124925297
+\end{verbatim}
+
+Therefore, the smoke test will execute automatically only if the new WarpX
+build completes successfully.
+
+\textbf{Current status:} the $0.13~\mathrm{T}$ GS/MRR initialization is now
+reproduced and frozen as the inherited reference case; ADIOS2/BP5 support has
+been successfully built; the ADIOS2-enabled WarpX executable and the first
+200-step physics smoke test are still pending and should not yet be reported
+as successful.
+
+% ------------------------------------------------------------
+\subsection{Immediate next step}
+% ------------------------------------------------------------
+
+If the dependent smoke test successfully reads \texttt{init.bp}, advances
+200 steps, and writes diagnostics, the next stage will be to extend the
+simulation into the early tilt-growth regime and construct an $n=1$
+displacement diagnostic, for example
+\[
+Z_1(t)
+=
+\frac{
+\displaystyle
+\int z\,\rho(\mathbf{x},t)e^{-i\theta}\,dV
+}{
+\displaystyle
+\int \rho(\mathbf{x},t)\,dV
+},
+\qquad
+A_1(t)=|Z_1(t)|.
+\]
+
+During a linear-growth interval,
+\[
+A_1(t)\propto e^{\gamma t},
+\]
+so that
+\[
+\ln A_1(t)=\gamma t+C
+\]
+can be used to estimate the physical $n=1$ tilt growth rate before proceeding
+to seed-amplitude and parameter scans.
+
+\end{document}
